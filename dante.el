@@ -245,7 +245,7 @@ If `haskell-mode' is not loaded, just return EXPRESSION."
 When the universal argument INSERT is non-nil, insert the type in the buffer."
   (interactive "P")
   (let ((tap (dante--ghc-subexp (dante-thing-at-point))))
-    (lcr-cps-let ((_load_messages (dante-async-load-current-buffer nil))
+    (lcr-cps-let ((_load_messages (dante-async-load-current-buffer t))
                     (ty (dante-async-call (concat ":type-at " tap))))
       (if insert (save-excursion (goto-char (line-beginning-position))
                                  (insert (dante-fontify-expression ty) "\n"))
@@ -285,7 +285,7 @@ When the universal argument INSERT is non-nil, insert the type in the buffer."
 Interpreting puts all symbols from the current module in
 scope. Compiling to avoids re-interpreting the dependencies over
 and over."
-  (let* ((epoch (buffer-modified-tick))
+  (let* ((epoch (buffer-chars-modified-tick))
          (unchanged (equal epoch dante-temp-epoch))
          (src-fname (buffer-file-name (current-buffer)))
          (fname (dante-temp-file-name (current-buffer)))
@@ -317,7 +317,7 @@ and over."
 (defun dante-check (checker cont)
   "Run a check with CHECKER and pass the status onto CONT."
   (if (eq (dante-get-var 'dante-state) 'dead) (funcall cont 'interrupted)
-    (lcr-cps-let ((messages (dante-async-load-current-buffer nil)))
+    (lcr-cps-let ((messages (dante-async-load-current-buffer t)))
       (let* ((temp-file (dante-local-name (dante-temp-file-name (current-buffer)))))
         (funcall cont
                  'finished
@@ -377,7 +377,7 @@ CHECKER and BUFFER are added if the error is in TEMP-FILE."
 
 (lcr-def dante-complete (prefix)
   (let ((imports (--filter (s-matches? "^import[ \t]+" it) (s-lines (buffer-string)))))
-    (lcr-call dante-async-load-current-buffer nil)
+    (lcr-call dante-async-load-current-buffer t)
     (dolist (i imports)
       (lcr-call dante-async-call i)) ;; the file probably won't load when trying to complete. So, load all the imports instead.
     (let* ((reply (lcr-call dante-async-call (format ":complete repl %S" prefix)))
@@ -794,14 +794,14 @@ CABAL-FILE rather than trying to locate one."
 
 (cl-defmethod xref-backend-definitions ((_backend (eql dante)) symbol)
   (lcr-cps-let ((ret (lcr-blocking-call))
-                  (_load_messages (dante-async-load-current-buffer nil))
+                  (_load_messages (dante-async-load-current-buffer t))
                   (target (dante-async-call (concat ":loc-at " symbol))))
     (let ((xrefs (dante--make-xrefs target)))
       (funcall ret xrefs))))
 
 (cl-defmethod xref-backend-references ((_backend (eql dante)) symbol)
   (lcr-cps-let ((ret (lcr-blocking-call))
-                  (_load_messages (dante-async-load-current-buffer nil))
+                  (_load_messages (dante-async-load-current-buffer t))
                   (result (dante-async-call (concat ":uses " symbol))))
     (let ((xrefs (dante--make-xrefs result)))
       (funcall ret xrefs))))
@@ -885,7 +885,7 @@ Calls DONE when done.  BLOCK-END is a marker for the end of the evaluation block
 (defun dante-flymake (report-fn &rest _args)
   "Run a check and pass the status onto REPORT-FN."
   (if (eq (dante-get-var 'dante-state) 'dead) (funcall report-fn :panic :explanation "Ghci is dead")
-    (lcr-cps-let ((messages (dante-async-load-current-buffer nil)))
+    (lcr-cps-let ((messages (dante-async-load-current-buffer t)))
       (let* ((temp-file (dante-local-name (dante-temp-file-name (current-buffer))))
              (diags (-non-nil (--map (dante-fm-message it (current-buffer) temp-file) messages))))
         (funcall report-fn diags)))))
